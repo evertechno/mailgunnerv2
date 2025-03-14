@@ -1,5 +1,3 @@
-can you help me setup in using MJML API in the below code where the email template is created based on prompts powered by AI and created by MJML API
-
 import streamlit as st
 import google.generativeai as genai
 import pandas as pd
