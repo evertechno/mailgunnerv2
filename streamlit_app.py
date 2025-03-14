@@ -5,6 +5,11 @@ import requests
 from googletrans import Translator
 import asyncio
 
+# MJML API endpoint and key
+MJML_API_URL = "https://api.mjml.io/v1/render"
+MJML_APP_ID = st.secrets["MJML_APP_ID"]
+MJML_SECRET_KEY = st.secrets["MJML_SECRET_KEY"]
+
 # Function to check API key
 def check_api_key(user_key):
     # List of allowed API keys stored in secrets
@@ -21,7 +26,7 @@ def check_api_key(user_key):
 MAILGUN_DOMAIN = "evertechcms.in"
 MAILGUN_FROM = "Ever CMS <mailgun@evertechcms.in>"
 
-def send_email(to_email, subject, text, api_key):
+def send_email(to_email, subject, html, api_key):
     try:
         response = requests.post(
             f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
@@ -29,7 +34,7 @@ def send_email(to_email, subject, text, api_key):
             data={"from": MAILGUN_FROM,
                   "to": to_email,
                   "subject": subject,
-                  "text": text}
+                  "html": html}
         )
         response.raise_for_status()
         return True
@@ -56,6 +61,20 @@ def generate_email_body(template, topic, first_name, personalization_data):
     for key, value in personalization_data.items():
         prompt += f" Include {key}: {value}."
     return generate_structured_content(prompt)
+
+# Function to render MJML to HTML using MJML API
+def render_mjml(mjml_content):
+    try:
+        response = requests.post(
+            MJML_API_URL,
+            auth=(MJML_APP_ID, MJML_SECRET_KEY),
+            json={"mjml": mjml_content}
+        )
+        response.raise_for_status()
+        return response.json()["html"]
+    except requests.exceptions.RequestException as e:
+        st.error(f"Failed to render MJML: {e}")
+        return None
 
 # Function for Multilingual Support using Google Translate (Asynchronous)
 async def translate_text(text, target_language):
@@ -135,14 +154,14 @@ if user_key:
                     selected_template = st.selectbox("Select Email Template", template_options)
 
                     email_templates = {
-                        "Simple": "Dear {first_name},\n\nWe have exciting news to share with you. Stay tuned for updates!\n\nBest regards,\nYour Company",
-                        "Professional": "Dear {first_name},\n\nI hope this email finds you well. We would like to inform you about some recent developments.\n\nSincerely,\nYour Company",
-                        "Marketing": "Hi {first_name},\n\nCheck out our new offerings! Don't miss out on special discounts just for you.\n\nBest,\nYour Company",
-                        "Announcement": "Dear {first_name},\n\nWe're thrilled to announce our new product. Take a look at what we've prepared for you!\n\nBest regards,\nYour Company",
-                        "Update": "Dear {first_name},\n\nHere's your latest update. Make sure you stay up-to-date with all the new changes!\n\nBest regards,\nYour Company",
-                        "Personalized": "Dear {first_name},\n\nWe're reaching out to provide an exclusive offer tailored just for you. Enjoy a special deal today!\n\nBest,\nYour Company",
-                        "Event Invite": "Dear {first_name},\n\nYou're invited to an exclusive event! Don't miss out on this amazing opportunity.\n\nLooking forward to seeing you there!\n\nBest regards,\nYour Company",
-                        "Seasonal Offer": "Dear {first_name},\n\nSeason's Greetings! We have an exclusive holiday offer for you. Grab it before it's gone!\n\nWarm regards,\nYour Company"
+                        "Simple": "<mjml><mj-body><mj-section><mj-column><mj-text>Dear {first_name},</mj-text><mj-text>We have exciting news to share with you. Stay tuned for updates!</mj-text><mj-text>Best regards,<br>Your Company</mj-text></mj-column></mj-section></mj-body></mjml>",
+                        "Professional": "<mjml><mj-body><mj-section><mj-column><mj-text>Dear {first_name},</mj-text><mj-text>I hope this email finds you well. We would like to inform you about some recent developments.</mj-text><mj-text>Sincerely,<br>Your Company</mj-text></mj-column></mj-section></mj-body></mjml>",
+                        "Marketing": "<mjml><mj-body><mj-section><mj-column><mj-text>Hi {first_name},</mj-text><mj-text>Check out our new offerings! Don't miss out on special discounts just for you.</mj-text><mj-text>Best,<br>Your Company</mj-text></mj-column></mj-section></mj-body></mjml>",
+                        "Announcement": "<mjml><mj-body><mj-section><mj-column><mj-text>Dear {first_name},</mj-text><mj-text>We're thrilled to announce our new product. Take a look at what we've prepared for you!</mj-text><mj-text>Best regards,<br>Your Company</mj-text></mj-column></mj-section></mj-body></mjml>",
+                        "Update": "<mjml><mj-body><mj-section><mj-column><mj-text>Dear {first_name},</mj-text><mj-text>Here's your latest update. Make sure you stay up-to-date with all the new changes!</mj-text><mj-text>Best regards,<br>Your Company</mj-text></mj-column></mj-section></mj-body></mjml>",
+                        "Personalized": "<mjml><mj-body><mj-section><mj-column><mj-text>Dear {first_name},</mj-text><mj-text>We're reaching out to provide an exclusive offer tailored just for you. Enjoy a special deal today!</mj-text><mj-text>Best,<br>Your Company</mj-text></mj-column></mj-section></mj-body></mjml>",
+                        "Event Invite": "<mjml><mj-body><mj-section><mj-column><mj-text>Dear {first_name},</mj-text><mj-text>You're invited to an exclusive event! Don't miss out on this amazing opportunity.</mj-text><mj-text>Looking forward to seeing you there!<br>Best regards,<br>Your Company</mj-text></mj-column></mj-section></mj-body></mjml>",
+                        "Seasonal Offer": "<mjml><mj-body><mj-section><mj-column><mj-text>Dear {first_name},</mj-text><mj-text>Season's Greetings! We have an exclusive holiday offer for you. Grab it before it's gone!</mj-text><mj-text>Warm regards,<br>Your Company</mj-text></mj-column></mj-section></mj-body></mjml>"
                     }
                     template_preview = st.selectbox("Select Template Preview", list(email_templates.keys()))
                     st.text_area("Template Preview", email_templates[template_preview].format(first_name="John"))
@@ -175,7 +194,10 @@ if user_key:
                     if 'email_body' not in st.session_state:
                         st.session_state.email_body = ""
 
-                    email_body = st.text_area("Email Body", st.session_state.email_body, height=300, key="email_body")
+                    email_body = st.text_area("Email Body", st.session_state.email_body, height=300)
+
+                    # Update the session state with the new value
+                    st.session_state.email_body = email_body
 
                     # Translate email content if needed
                     if selected_language != "en":
@@ -203,7 +225,9 @@ if user_key:
                         for email, first_name in zip(email_list, first_name_list):
                             personalized_body = st.session_state.translated_body if 'translated_body' in st.session_state else email_body
                             personalized_body = personalized_body.format(first_name=first_name)
-                            if send_email(email, subject, personalized_body, api_key):
+                            mjml_content = email_templates[selected_template].format(first_name=first_name)
+                            html_content = render_mjml(mjml_content)
+                            if html_content and send_email(email, subject, html_content, api_key):
                                 success_count += 1
                             else:
                                 failure_count += 1
